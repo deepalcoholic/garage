@@ -109,10 +109,10 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         latent_ph = tf.compat.v1.placeholder(tf.float32,
                                              shape=(None, latent_dim))
 
-        dist1_sym = policy.dist_info_sym_under_task(obs_ph,
+        dist1_sym = policy.dist_info_sym_given_task(obs_ph,
                                                     task_ph,
                                                     name='p1_sym')
-        dist2_sym = policy.dist_info_sym_under_latent(obs_ph,
+        dist2_sym = policy.dist_info_sym_given_latent(obs_ph,
                                                       latent_ph,
                                                       name='p2_sym')
 

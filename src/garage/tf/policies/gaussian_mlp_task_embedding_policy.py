@@ -136,7 +136,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         ],
                         feed_list=[obs_input, latent_input])
 
-    def dist_info_sym_under_task(self,
+    def dist_info_sym_given_task(self,
                                  obs_var,
                                  task_var,
                                  state_info_vars=None,
@@ -144,15 +144,28 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """Build a symbolic graph of the action distribution given task.
 
         Args:
-            obs_var (tf.Tensor): Symbolic observation input.
-            task_var (tf.Tensor): Symbolic task input.
+            obs_var (tf.Tensor): Symbolic observation input,
+                with shape :math:`(None, O)`. O is the dimension
+                of observation.
+            task_var (tf.Tensor): Symbolic task input,
+                with shape :math:`(None, N)`. N is the number of tasks.
             state_info_vars (dict): Extra state information, e.g.
-                previous action.
+                previous action. It contains the following values,
+                - mean (np.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (np.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
             name (str): Name for symbolic graph.
 
         Returns:
-            dict[tf.Tensor]: Outputs of the symbolic graph of
-                action distribution parameters.
+            dict[tf.Tensor]: Outputs of the symbolic graph of action
+                distribution parameters. It contains the following values,
+                - mean (tf.Tensor): Symbolic mean of the distribution, with
+                    shape :math:`(M, )`.
+                - log_std (tf.Tensor): Symbolic log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         """
         with tf.compat.v1.variable_scope(self._variable_scope):
@@ -165,7 +178,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
                                                            name=name)
         return dict(mean=mean_var, log_std=log_std_var)
 
-    def dist_info_sym_under_latent(self,
+    def dist_info_sym_given_latent(self,
                                    obs_var,
                                    latent_var,
                                    state_info_vars=None,
@@ -173,15 +186,29 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """Build a symbolic graph of the action distribution given latent.
 
         Args:
-            obs_var (tf.Tensor): Symbolic observation input.
-            latent_var (tf.Tensor): Symbolic latent input.
+            obs_var (tf.Tensor): Symbolic observation input,
+                with shape :math:`(None, O)`. O is the dimension of
+                observation.
+            latent_var (tf.Tensor): Symbolic latent input,
+                with shape :math:`(None, M)`. M is the dimension of
+                latent embedding.
             state_info_vars (dict): Extra state information, e.g.
-                previous action.
+                previous action. It contains the following values,
+                - mean (np.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (np.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
             name (str): Name for symbolic graph.
 
         Returns:
             dict[tf.Tensor]: Outputs of the symbolic graph of distribution
-                parameters.
+                parameters. It contains the following values,
+                - mean (tf.Tensor): Symbolic mean of the distribution, with
+                    shape :math:`(M, )`.
+                - log_std (tf.Tensor): Symbolic log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         """
         with tf.compat.v1.variable_scope(self._variable_scope):

@@ -36,17 +36,19 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Get embedded task id in latent space.
 
         Args:
-            task_id (np.ndarray): One-hot task id.
+            task_id (np.ndarray): One-hot task id, with shape :math:`(N, )`. N
+                is the number of tasks.
 
         Returns:
-            np.ndarray: An embedding sampled from embedding distribution.
-            dict: Embedding distribution information.
-
-        Note:
-            It returns an embedding and a dict, with keys
-            - mean (numpy.ndarray): Mean of the distribution.
-            - log_std (numpy.ndarray): Log standard deviation of the
-                distribution.
+            np.ndarray: An embedding sampled from embedding distribution, with
+                shape :math:`(M, )`. M is the dimension of the latent
+                embedding.
+            dict: Embedding distribution information, with keys
+                - mean (numpy.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         """
         return self.encoder.forward(task_id)
@@ -76,11 +78,14 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Sample an action given observation and task id.
 
         Args:
-            observation (np.ndarray): Observation from the environment.
-            task_id (np.ndarry): One-hot task id.
+            observation (np.ndarray): Observation from the environment, with
+                shape :math:`(O, )`. O is the dimension of the observation.
+            task_id (np.ndarray): One-hot task id, with shape :math:`(N, ).
+                N is the number of tasks.
 
         Returns:
-            np.ndarray: Action sampled from the policy.
+            np.ndarray: Action sampled from the policy, with shape
+                :math:`(A, )`. A is the dimension of action.
 
         """
 
@@ -89,11 +94,16 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Sample a batch of actions given observations and task ids.
 
         Args:
-            observations (np.ndarray): Observations from the environment.
-            task_ids (np.ndarry): One-hot task ids.
+            observations (np.ndarray): Observations from the environment, with
+                shape :math:`(B, O)`. B is the number of environment steps,
+                O is the dimension of observation.
+            task_ids (np.ndarry): One-hot task ids, with shape :math:`(B, N)`.
+                B is the number of environment steps, N is the number of tasks.
 
         Returns:
-            np.ndarray: Actions sampled from the policy.
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
 
         """
 
@@ -102,11 +112,14 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Sample an action given observation and latent.
 
         Args:
-            observation (np.ndarray): Observation from the environment.
-            latent (np.ndarray): Latent.
+            observation (np.ndarray): Observation from the environment,
+                with shape :math:`(O, )`. O is the dimension of observation.
+            latent (np.ndarray): Latent, with shape :math:`(M, )`. M is the
+                dimension of latent embedding.
 
         Returns:
-            np.ndarray: Action sampled from the policy.
+            np.ndarray: Action sampled from the policy,
+                with shape :math:`(A, )`. A is the dimension of action.
 
         """
 
@@ -115,11 +128,17 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Sample a batch of actions given observations and latents.
 
         Args:
-            observations (np.ndarray): Observations from the environment.
-            latents (np.ndarray): Latents.
+            observations (np.ndarray): Observations from the environment, with
+                shape :math:`(B, O)`. B is the number of environment steps, O
+                is the dimension of observation.
+            latents (np.ndarray): Latents, with shape :math:`(B, M)`. B is the
+                number of environment steps, M is the dimension of
+                latent embedding.
 
         Returns:
-            np.ndarray: Actions sampled from the policy.
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
 
         """
 
@@ -130,15 +149,26 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Return the symbolic distribution information about the encoder.
 
         Args:
-            input_var(tf.Tensor): Symbolic variable for encoder input.
+            input_var(tf.Tensor): Symbolic variable for encoder input,
+                with shape :math:`(None, N)`. N is the number of tasks.
             state_info_vars(dict): A dictionary whose values should contain
                 information about the state of the policy at the time it
-                receives the input.
+                receives the input. It contains the following values,
+                - mean (np.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (np.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
             name (str): Name for symbolic graph.
 
         Returns:
-            dict[tf.Tensor]: Outputs of the symbolic graph of distribution
-                parameters.
+            dict[tf.Tensor]: Outputs of the symbolic graph of encoder
+                distribution parameters. It contains the following values,
+                - mean (tf.Tensor): Symbolic mean of the distribution, with
+                    shape :math:`(M, )`.
+                - log_std (tf.Tensor): Symbolic log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         """
         return self.encoder.dist_info_sym(input_var, state_info_vars, name)
@@ -150,16 +180,27 @@ class TaskEmbeddingPolicy(StochasticPolicy):
             input_val(tf.Tensor): Encoder input values.
             state_infos(dict): A dictionary whose values should contain
                 information about the state of the policy at the time it
-                receives the input.
+                receives the input. It contains the following values,
+                - mean (np.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (np.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         Returns:
-            dict[numpy.ndarray]: Distribution parameters.
+            dict[numpy.ndarray]: Encoder distribution parameters. It contains
+                the following values,
+                - mean (np.ndarray): Mean of the distribution, with shape
+                    :math:`(M, )`.
+                - log_std (np.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`.
+                M is the shape of the embedding.
 
         """
         return self.encoder.dist_info(input_val, state_infos)
 
     @abc.abstractmethod
-    def dist_info_sym_under_task(self,
+    def dist_info_sym_given_task(self,
                                  obs_var,
                                  task_var,
                                  state_info_vars=None,
@@ -167,20 +208,23 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Build a symbolic graph of the action distribution given task.
 
         Args:
-            obs_var (tf.Tensor): Symbolic observation input.
-            task_var (tf.Tensor): Symbolic task input.
+            obs_var (tf.Tensor): Symbolic observation input,
+                with shape :math:`(None, O)`. O is the dimension
+                of observation.
+            task_var (tf.Tensor): Symbolic task input,
+                with shape :math:`(None, N)`. N is the number of tasks.
             state_info_vars (dict): Extra state information, e.g.
                 previous action.
             name (str): Name for symbolic graph.
 
         Returns:
-            dict[tf.Tensor]: Outputs of the symbolic graph of
-                action distribution parameters.
+            dict[tf.Tensor]: Outputs of the symbolic graph of action
+                distribution parameters.
 
         """
 
     @abc.abstractmethod
-    def dist_info_sym_under_latent(self,
+    def dist_info_sym_given_latent(self,
                                    obs_var,
                                    latent_var,
                                    state_info_vars=None,
@@ -188,8 +232,12 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """Build a symbolic graph of the action distribution given latent.
 
         Args:
-            obs_var (tf.Tensor): Symbolic observation input.
-            latent_var (tf.Tensor): Symbolic latent input.
+            obs_var (tf.Tensor): Symbolic observation input,
+                with shape :math:`(None, O)`. O is the dimension of
+                observation.
+            latent_var (tf.Tensor): Symbolic latent input,
+                with shape :math:`(None, M)`. M is the dimension of
+                latent embedding.
             state_info_vars (dict): Extra state information, e.g.
                 previous action.
             name (str): Name for symbolic graph.
@@ -207,10 +255,12 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         an additional task id to sample action.
 
         Args:
-            observation (np.ndarray): Observation from the environment.
+            observation (np.ndarray): Observation from the environment,
+                with shape :math:`(O, )`. O is the dimension of observation.
 
         Returns:
-            np.ndarray: Action sampled from the policy.
+            np.ndarray: Action sampled from the policy,
+                with shape :math:`(A, )`. A is the dimension of action.
 
         """
         raise NotImplementedError
@@ -222,10 +272,14 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         an additional task id to sample action.
 
         Args:
-            observations (list[np.ndarray]): Observations from the environment.
+            observations (list[np.ndarray]): Observations from the environment,
+                with shape :math:`(B, O)`. B is the number of
+                environment steps. O is the dimension of observation.
 
         Returns:
-            np.ndarray: Actions sampled from the policy.
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the nunmber of
+                environment steps. A is the dimension of action.
 
         """
         raise NotImplementedError
@@ -239,11 +293,16 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         an additional task id to sample action.
 
         Args:
-            input_var (tf.Tensor): symbolic variable for observations
+            input_var (tf.Tensor): symbolic variable for observations,
+                with shape :math:`(None, O)`. O is the dimension of action.
             state_info_vars (dict): a dictionary whose values should contain
                 information about the state of the policy at the time it
                 received the observation.
             name (str): Name of the symbolic graph.
+
+        Returns:
+            dict[tf.Tensor]: Outputs of the symbolic graph of distribution
+                parameters.
 
         """
         raise NotImplementedError
@@ -257,10 +316,14 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         an additional task id to sample action.
 
         Args:
-            input_val (tf.Tensor): observation values
-            state_infos (dict): a dictionary whose values should contain
+            input_val (np.ndarray): Observation values,
+            with shape :math:`(O, )`. O is the dimension of ovservation.
+            state_infos (dict): A dictionary whose values should contain
                 information about the state of the policy at the time it
-                received the observation
+                received the observation.
+
+        Returns:
+            dict[numpy.ndarray]: Action distribution parameters.
 
         """
         raise NotImplementedError
@@ -298,11 +361,14 @@ class TaskEmbeddingPolicy(StochasticPolicy):
 
         Args:
             collated (np.ndarray): Environment observation concatenated with
-                task one-hot.
+                task one-hot, with shape :math:`(O+N, )`. O is the dimension of
+                observation, N is the number of tasks.
 
         Returns:
-            np.ndarray: Vanilla environment observation.
-            np.ndarray: Task one-hot.
+            np.ndarray: Vanilla environment observation,
+                with shape :math:`(O, )`. O is the dimension of observation.
+            np.ndarray: Task one-hot, with shape :math:`(N, )`. N is the number
+                of tasks.
 
         """
         task_dim = self.task_space.flat_dim
