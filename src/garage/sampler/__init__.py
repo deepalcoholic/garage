@@ -12,26 +12,15 @@ from garage.sampler.parallel_vec_env_executor import ParallelVecEnvExecutor
 from garage.sampler.ray_sampler import RaySampler, SamplerWorker
 from garage.sampler.sampler import Sampler
 from garage.sampler.stateful_pool import singleton_pool
-from garage.sampler.task_embedding_worker import TaskEmbeddingWorker
 from garage.sampler.vec_env_executor import VecEnvExecutor
 from garage.sampler.worker import DefaultWorker, Worker
 from garage.sampler.worker_factory import WorkerFactory
+from garage.tf.samplers.task_embedding_worker import TaskEmbeddingWorker
 
 __all__ = [
-    'BatchSampler',
-    'Sampler',
-    'ISSampler',
-    'singleton_pool',
-    'LocalSampler',
-    'RaySampler',
-    'SamplerWorker',
-    'MultiprocessingSampler',
-    'ParallelVecEnvExecutor',
-    'VecEnvExecutor',
-    'OffPolicyVectorizedSampler',
-    'OnPolicyVectorizedSampler',
-    'WorkerFactory',
-    'Worker',
-    'DefaultWorker',
+    'BatchSampler', 'Sampler', 'ISSampler', 'singleton_pool', 'LocalSampler',
+    'RaySampler', 'SamplerWorker', 'MultiprocessingSampler',
+    'ParallelVecEnvExecutor', 'VecEnvExecutor', 'OffPolicyVectorizedSampler',
+    'OnPolicyVectorizedSampler', 'WorkerFactory', 'Worker', 'DefaultWorker',
     'TaskEmbeddingWorker'
 ]
