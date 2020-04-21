@@ -46,7 +46,7 @@ class TaskEmbeddingWorker(DefaultWorker):
         self._t = self.env.active_task_one_hot
         self._z, self._latent_info = self.agent.get_latent(self._t)
         self._z = self.agent.latent_space.flatten(self._z)
-        self.start_rollout()
+        super().start_rollout()
 
     def step_rollout(self):
         """Take a single time-step in the current rollout.
@@ -122,7 +122,7 @@ class TaskEmbeddingWorker(DefaultWorker):
         env_infos['task_onehot'] = np.asarray(tasks)
         agent_infos['latent'] = np.asarray(latents)
         for k, v in latent_infos.items():
-            env_infos['latent_{}'.format(k)] = v
+            agent_infos['latent_{}'.format(k)] = v
         lengths = self._lengths
         self._lengths = []
         return TrajectoryBatch(self.env.spec, np.asarray(observations),
