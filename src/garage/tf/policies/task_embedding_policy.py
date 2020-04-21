@@ -2,7 +2,6 @@
 import abc
 
 import akro
-import numpy as np
 
 from garage.tf.policies import StochasticPolicy
 
@@ -25,7 +24,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
     def __init__(self, name, env_spec, encoder):
         super().__init__(name, env_spec)
         self._encoder = encoder
-        self._task_observation_space = self.concat_spaces(
+        self._augmented_observation_space = akro.concat(
             self._env_spec.observation_space, self.task_space)
 
     @property
@@ -63,17 +62,17 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         return self.encoder.spec.input_space
 
     @property
-    def task_observation_space(self):
-        """akro.Box: Concatenated one-hot task id and observation space."""
-        return self._task_observation_space
+    def augmented_observation_space(self):
+        """akro.Box: Concatenated observation space and one-hot task id."""
+        return self._augmented_observation_space
 
     @property
-    def embedding_distribution(self):
-        """garage.tf.distributions.DiagonalGaussian: Embedding distribution."""
+    def encoder_distribution(self):
+        """garage.tf.distributions.DiagonalGaussian: Encoder distribution."""
         return self.encoder.distribution
 
     @abc.abstractmethod
-    def get_action_under_task(self, observation, task_id):
+    def get_action_given_task(self, observation, task_id):
         """Sample an action given observation and task id.
 
         Args:
@@ -86,7 +85,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """
 
     @abc.abstractmethod
-    def get_actions_under_tasks(self, observations, task_ids):
+    def get_actions_given_tasks(self, observations, task_ids):
         """Sample a batch of actions given observations and task ids.
 
         Args:
@@ -99,7 +98,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """
 
     @abc.abstractmethod
-    def get_action_under_latent(self, observation, latent):
+    def get_action_given_latent(self, observation, latent):
         """Sample an action given observation and latent.
 
         Args:
@@ -112,7 +111,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """
 
     @abc.abstractmethod
-    def get_actions_under_latents(self, observations, latents):
+    def get_actions_given_latents(self, observations, latents):
         """Sample a batch of actions given observations and latents.
 
         Args:
@@ -124,11 +123,11 @@ class TaskEmbeddingPolicy(StochasticPolicy):
 
         """
 
-    def embedding_dist_info_sym(self,
-                                input_var,
-                                state_info_vars=None,
-                                name='embedding_dist_info_sym'):
-        """Return the symbolic distribution information about the embedding.
+    def encoder_dist_info_sym(self,
+                              input_var,
+                              state_info_vars=None,
+                              name='encoder_dist_info_sym'):
+        """Return the symbolic distribution information about the encoder.
 
         Args:
             input_var(tf.Tensor): Symbolic variable for encoder input.
@@ -144,8 +143,8 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """
         return self.encoder.dist_info_sym(input_var, state_info_vars, name)
 
-    def embedding_dist_info(self, input_val, state_infos=None):
-        """Return the distribution information about the embedding.
+    def encoder_dist_info(self, input_val, state_infos=None):
+        """Return the distribution information about the encoder.
 
         Args:
             input_val(tf.Tensor): Encoder input values.
@@ -308,25 +307,3 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         """
         task_dim = self.task_space.flat_dim
         return collated[:-task_dim], collated[-task_dim:]
-
-    @staticmethod
-    def concat_spaces(first, second):
-        """Concatenate two Box space.
-
-        Args:
-            first (akro.Box): The first space.
-            second (akro.Box): The second space.
-
-        Returns:
-            akro.Box: The concatenated space.
-
-        """
-        assert isinstance(first, akro.Box)
-        assert isinstance(second, akro.Box)
-
-        first_lb, first_ub = first.bounds
-        second_lb, second_ub = second.bounds
-        first_lb, first_ub = first_lb.flatten(), first_ub.flatten()
-        second_lb, second_ub = second_lb.flatten(), second_ub.flatten()
-        return akro.Box(np.concatenate([first_lb, second_lb]),
-                        np.concatenate([first_ub, second_ub]))

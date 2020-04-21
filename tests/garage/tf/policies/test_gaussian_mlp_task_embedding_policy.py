@@ -9,8 +9,7 @@ import tensorflow as tf
 from garage import InOutSpec
 from garage.tf.embeddings import GaussianMLPEncoder
 from garage.tf.envs import TfEnv
-from garage.tf.policies import (GaussianMLPTaskEmbeddingPolicy,
-                                TaskEmbeddingPolicy)
+from garage.tf.policies import GaussianMLPTaskEmbeddingPolicy
 from tests.fixtures import TfGraphTestCase
 from tests.fixtures.envs.dummy import DummyBoxEnv
 from tests.fixtures.models import SimpleGaussianMLPModel
@@ -44,7 +43,7 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         obs, _, _, _ = env.step(1)
         latent = np.random.random((latent_dim, ))
 
-        action, prob = policy.get_action_under_latent(obs, latent)
+        action, prob = policy.get_action_given_latent(obs, latent)
 
         expected_action = np.full(action_dim, 0.75)
         expected_mean = np.full(action_dim, 0.5)
@@ -137,7 +136,7 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         assert np.array_equal(prob2['mean'], expected_mean)
         assert np.array_equal(prob2['log_std'], expected_log_std)
 
-    def test_embedding_dist_info(self):
+    def test_encoder_dist_info(self):
         obs_dim, action_dim, task_num, latent_dim = (2, ), (2, ), 5, 2
         env = TfEnv(DummyBoxEnv(obs_dim=obs_dim, action_dim=action_dim))
         with mock.patch(
@@ -153,10 +152,10 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
             policy = GaussianMLPTaskEmbeddingPolicy(env_spec=env.spec,
                                                     encoder=encoder)
 
-            assert policy.embedding_distribution.dim == latent_dim
+            assert policy.encoder_distribution.dim == latent_dim
 
             inp_ph = tf.compat.v1.placeholder(tf.float32, shape=(None, 5))
-            dist_sym = policy.embedding_dist_info_sym(inp_ph)
+            dist_sym = policy.encoder_dist_info_sym(inp_ph)
             dist = self.sess.run(dist_sym,
                                  feed_dict={inp_ph: [np.random.random(5)]})
 
@@ -186,18 +185,9 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         assert policy.encoder == encoder
         assert policy.latent_space.flat_dim == latent_dim
         assert policy.task_space.flat_dim == task_num
-        assert (policy.task_observation_space.flat_dim ==
+        assert (policy.augmented_observation_space.flat_dim ==
                 env.observation_space.flat_dim + task_num)
-        assert policy.embedding_distribution.dim == latent_dim
-
-    def test_concat_spaces(self):
-        first_space = akro.Box(low=np.array([-1, -1]), high=np.array([1, 1]))
-        second_space = akro.Box(low=np.array([-2, -2]), high=np.array([2, 2]))
-        concat_space = TaskEmbeddingPolicy.concat_spaces(
-            first_space, second_space)
-        low, high = concat_space.bounds
-        np.testing.assert_equal(low, (-1, -1, -2, -2))
-        np.testing.assert_equal(high, (1, 1, 2, 2))
+        assert policy.encoder_distribution.dim == latent_dim
 
     def test_split_task_observation(self):
         obs_dim, task_num = 3, 5
@@ -240,11 +230,11 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
 
         for var in vars1:
             var.assign(np.ones(var.shape))
-        assert np.any(policy.get_action_under_latent(obs, latent) != 0)
+        assert np.any(policy.get_action_given_latent(obs, latent) != 0)
 
         for var in vars1:
             var.assign(np.zeros(var.shape))
-        assert not np.all(policy.get_action_under_latent(obs, latent) == 0)
+        assert not np.all(policy.get_action_given_latent(obs, latent) == 0)
 
     def test_pickling(self):
         obs_dim, action_dim, task_num, latent_dim = (2, ), (2, ), 5, 2

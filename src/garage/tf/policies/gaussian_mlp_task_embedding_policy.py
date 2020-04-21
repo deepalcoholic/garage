@@ -200,7 +200,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """
         return self.model.networks['from_latent'].dist
 
-    def get_action_under_latent(self, observation, latent):
+    def get_action_given_latent(self, observation, latent):
         """Sample an action given observation and latent.
 
         Args:
@@ -222,7 +222,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         log_std = self.action_space.unflatten(log_std[0])
         return sample, dict(mean=mean, log_std=log_std)
 
-    def get_actions_under_latents(self, observations, latents):
+    def get_actions_given_latents(self, observations, latents):
         """Sample a batch of actions given observations and latents.
 
         Args:
@@ -235,7 +235,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """
         raise NotImplementedError
 
-    def get_action_under_task(self, observation, task_id):
+    def get_action_given_task(self, observation, task_id):
         """Sample an action given observation and task id.
 
         Args:
@@ -248,7 +248,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """
         raise NotImplementedError
 
-    def get_actions_under_tasks(self, observations, task_ids):
+    def get_actions_given_tasks(self, observations, task_ids):
         """Sample a batch of actions given observations and task ids.
 
         Args:
