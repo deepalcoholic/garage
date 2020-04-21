@@ -74,6 +74,53 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         return self.encoder.distribution
 
     @abc.abstractmethod
+    def get_action(self, observation):
+        """Get action sampled from the policy.
+
+        Args:
+            observation (np.ndarray): Augmented observation from the
+                environment, with shape :math:`(O+N, )`. O is the dimension of
+                observation, N is the number of tasks.
+
+        Returns:
+            np.ndarray: Action sampled from the policy,
+                with shape :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
+
+        """
+
+    @abc.abstractmethod
+    def get_actions(self, observations):
+        """Get actions sampled from the policy.
+
+        Args:
+            observations (np.ndarray): Augmented observation from the
+                environment, with shape :math:`(B, O+N)`. B is the number of
+                environment steps, O is the dimension of observation, N is the
+                number of tasks.
+
+        Returns:
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of environment
+                    steps, M is the dimension of the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps, M is the dimension of the latent
+                    embedding.
+
+        """
+
+    @abc.abstractmethod
     def get_action_given_task(self, observation, task_id):
         """Sample an action given observation and task id.
 
@@ -86,6 +133,13 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         Returns:
             np.ndarray: Action sampled from the policy, with shape
                 :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
 
         """
 
@@ -104,6 +158,15 @@ class TaskEmbeddingPolicy(StochasticPolicy):
             np.ndarray: Actions sampled from the policy,
                 with shape :math:`(B, A)`. B is the number of environment
                 steps, A is the dimension of action.
+            dict: Action distribution information, , with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
 
         """
 
@@ -120,6 +183,13 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         Returns:
             np.ndarray: Action sampled from the policy,
                 with shape :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
 
         """
 
@@ -139,6 +209,15 @@ class TaskEmbeddingPolicy(StochasticPolicy):
             np.ndarray: Actions sampled from the policy,
                 with shape :math:`(B, A)`. B is the number of environment
                 steps, A is the dimension of action.
+            dict: Action distribution information, , with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
 
         """
 
@@ -228,7 +307,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
                                    obs_var,
                                    latent_var,
                                    state_info_vars=None,
-                                   name='from_latent'):
+                                   name='given_latent'):
         """Build a symbolic graph of the action distribution given latent.
 
         Args:
@@ -247,42 +326,6 @@ class TaskEmbeddingPolicy(StochasticPolicy):
                 parameters.
 
         """
-
-    def get_action(self, observation):
-        """Get action sampled from the policy.
-
-        This function is not implemented because Task Embedding policy requires
-        an additional task id to sample action.
-
-        Args:
-            observation (np.ndarray): Observation from the environment,
-                with shape :math:`(O, )`. O is the dimension of observation.
-
-        Returns:
-            np.ndarray: Action sampled from the policy,
-                with shape :math:`(A, )`. A is the dimension of action.
-
-        """
-        raise NotImplementedError
-
-    def get_actions(self, observations):
-        """Get action sampled from the policy.
-
-        This function is not implemented because Task Embedding policy requires
-        an additional task id to sample action.
-
-        Args:
-            observations (list[np.ndarray]): Observations from the environment,
-                with shape :math:`(B, O)`. B is the number of
-                environment steps. O is the dimension of observation.
-
-        Returns:
-            np.ndarray: Actions sampled from the policy,
-                with shape :math:`(B, A)`. B is the nunmber of
-                environment steps. A is the dimension of action.
-
-        """
-        raise NotImplementedError
 
     def dist_info_sym(self, input_var, state_info_vars=None, name='default'):
         """Symbolic graph of action distribution.
@@ -317,7 +360,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
 
         Args:
             input_val (np.ndarray): Observation values,
-            with shape :math:`(O, )`. O is the dimension of ovservation.
+                with shape :math:`(O, )`. O is the dimension of ovservation.
             state_infos (dict): A dictionary whose values should contain
                 information about the state of the policy at the time it
                 received the observation.
@@ -356,7 +399,7 @@ class TaskEmbeddingPolicy(StochasticPolicy):
         return (self._variable_scope.global_variables() +
                 self.encoder.get_global_vars())
 
-    def split_task_observation(self, collated):
+    def split_augmented_observation(self, collated):
         """Splits up observation into one-hot task and environment observation.
 
         Args:

@@ -1,3 +1,4 @@
+from itertools import chain
 import pickle
 from unittest import mock
 
@@ -42,17 +43,47 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         env.reset()
         obs, _, _, _ = env.step(1)
         latent = np.random.random((latent_dim, ))
+        task = np.zeros(task_num)
+        task[0] = 1
 
-        action, prob = policy.get_action_given_latent(obs, latent)
+        action1, prob1 = policy.get_action_given_latent(obs, latent)
+        action2, prob2 = policy.get_action_given_task(obs, task)
+        action3, prob3 = policy.get_action(
+            np.concatenate([obs.flatten(), task]))
 
         expected_action = np.full(action_dim, 0.75)
         expected_mean = np.full(action_dim, 0.5)
         expected_log_std = np.full(action_dim, np.log(0.5))
 
-        assert env.action_space.contains(action)
-        assert np.array_equal(action, expected_action)
-        assert np.array_equal(prob['mean'], expected_mean)
-        assert np.array_equal(prob['log_std'], expected_log_std)
+        assert env.action_space.contains(action1)
+        assert np.array_equal(action1, expected_action)
+        assert np.array_equal(prob1['mean'], expected_mean)
+        assert np.array_equal(prob1['log_std'], expected_log_std)
+
+        assert env.action_space.contains(action2)
+        assert np.array_equal(action2, expected_action)
+        assert np.array_equal(prob2['mean'], expected_mean)
+        assert np.array_equal(prob2['log_std'], expected_log_std)
+
+        assert env.action_space.contains(action3)
+        assert np.array_equal(action3, expected_action)
+        assert np.array_equal(prob3['mean'], expected_mean)
+        assert np.array_equal(prob3['log_std'], expected_log_std)
+
+        obses, latents, tasks = [obs] * 3, [latent] * 3, [task] * 3
+        aug_obses = [np.concatenate([obs.flatten(), task])] * 3
+        action1n, prob1n = policy.get_actions_given_latents(obses, latents)
+        action2n, prob2n = policy.get_actions_given_tasks(obses, tasks)
+        action3n, prob3n = policy.get_actions(aug_obses)
+
+        for action, mean, log_std in chain(
+                zip(action1n, prob1n['mean'], prob1n['log_std']),
+                zip(action2n, prob2n['mean'], prob2n['log_std']),
+                zip(action3n, prob3n['mean'], prob3n['log_std'])):
+            assert env.action_space.contains(action)
+            assert np.array_equal(action, expected_action)
+            assert np.array_equal(mean, expected_mean)
+            assert np.array_equal(log_std, expected_log_std)
 
     def test_get_latent(self):
         obs_dim, action_dim, task_num, latent_dim = (2, ), (2, ), 5, 2
@@ -143,6 +174,15 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
                 'garage.tf.embeddings.'
                 'gaussian_mlp_encoder.GaussianMLPModel',
                 new=SimpleGaussianMLPModel):
+
+            old_build = SimpleGaussianMLPModel._build
+
+            def float32_build(this, obs_input, name):
+                mean, log_std, std, dist = old_build(this, obs_input, name)
+                return mean, tf.cast(log_std, tf.float32), std, dist
+
+            SimpleGaussianMLPModel._build = float32_build
+
             embedding_spec = InOutSpec(
                 input_space=akro.Box(low=np.zeros(task_num),
                                      high=np.ones(task_num)),
@@ -164,6 +204,8 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
 
             assert np.allclose(dist['mean'], expected_mean)
             assert np.allclose(dist['log_std'], expected_log_std)
+
+            SimpleGaussianMLPModel._dtype = np.float32
 
     def test_auxiliary(self):
         obs_dim, action_dim, task_num, latent_dim = (2, ), (2, ), 2, 2
@@ -189,18 +231,18 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
                 env.observation_space.flat_dim + task_num)
         assert policy.encoder_distribution.dim == latent_dim
 
-    def test_split_task_observation(self):
+    def test_split_augmented_observation(self):
         obs_dim, task_num = 3, 5
         policy = mock.Mock(spec=GaussianMLPTaskEmbeddingPolicy)
         policy.task_space = mock.Mock()
         policy.task_space.flat_dim = task_num
-        policy.split_task_observation = \
-            GaussianMLPTaskEmbeddingPolicy.split_task_observation
+        policy.split_augmented_observation = \
+            GaussianMLPTaskEmbeddingPolicy.split_augmented_observation
 
         obs = np.random.random(obs_dim)
         task = np.random.random(task_num)
-        o, t = policy.split_task_observation(policy,
-                                             np.concatenate([obs, task]))
+        o, t = policy.split_augmented_observation(policy,
+                                                  np.concatenate([obs, task]))
 
         assert np.array_equal(obs, o)
         assert np.array_equal(task, t)
@@ -252,3 +294,4 @@ class TestGaussianMLPTaskEmbeddingPolicy(TfGraphTestCase):
         with tf.compat.v1.variable_scope('resumed'):
             unpickled = pickle.loads(pickled)
             assert hasattr(unpickled, '_f_dist_obs_latent')
+            assert hasattr(unpickled, '_f_dist_obs_task')

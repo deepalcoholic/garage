@@ -117,7 +117,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
     def _initialize(self):
         obs_input = tf.compat.v1.placeholder(tf.float32,
                                              shape=(None, self._obs_dim))
-        # task_input = self._encoder.input
+        task_input = self._encoder.input
         latent_input = tf.compat.v1.placeholder(
             tf.float32, shape=(None, self._encoder.output_dim))
 
@@ -127,20 +127,80 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
             with tf.compat.v1.variable_scope('concat_obs_latent'):
                 obs_latent_input = tf.concat([obs_input, latent_input],
                                              axis=-1)
-            self.model.build(obs_latent_input, name='from_latent')
+            self.model.build(obs_latent_input, name='given_latent')
+
+            with tf.compat.v1.variable_scope('concat_obs_task'):
+                latent_dist_info_sym = self._encoder.dist_info_sym(
+                    task_input, name='dist_info_sym')
+                latent_var = self._encoder.distribution.sample_sym(
+                    latent_dist_info_sym)
+
+                embed_state_input = tf.concat([obs_input, latent_var], axis=-1)
+            self.model.build(embed_state_input, name='given_task')
 
         self._f_dist_obs_latent = tf.compat.v1.get_default_session(
         ).make_callable([
-            self.model.networks['from_latent'].mean,
-            self.model.networks['from_latent'].log_std
+            self.model.networks['given_latent'].mean,
+            self.model.networks['given_latent'].log_std
         ],
                         feed_list=[obs_input, latent_input])
+
+        self._f_dist_obs_task = tf.compat.v1.get_default_session(
+        ).make_callable([
+            self.model.networks['given_task'].mean,
+            self.model.networks['given_task'].log_std
+        ],
+                        feed_list=[obs_input, task_input])
+
+    def dist_info_sym(self, input_var, state_info_vars=None, name='default'):
+        """Symbolic graph of action distribution.
+
+        Return the symbolic distribution information about the actions.
+
+        This function is not implemented because Task Embedding policy requires
+        an additional task id to sample action.
+
+        Args:
+            input_var (tf.Tensor): symbolic variable for observations,
+                with shape :math:`(None, O)`. O is the dimension of action.
+            state_info_vars (dict): a dictionary whose values should contain
+                information about the state of the policy at the time it
+                received the observation.
+            name (str): Name of the symbolic graph.
+
+        Returns:
+            dict[tf.Tensor]: Outputs of the symbolic graph of distribution
+                parameters.
+
+        """
+        raise NotImplementedError
+
+    def dist_info(self, input_val, state_infos):
+        """Action distribution info.
+
+        Return the distribution information about the actions.
+
+        This function is not implemented because Task Embedding policy requires
+        an additional task id to sample action.
+
+        Args:
+            input_val (np.ndarray): Observation values,
+                with shape :math:`(O, )`. O is the dimension of ovservation.
+            state_infos (dict): A dictionary whose values should contain
+                information about the state of the policy at the time it
+                received the observation.
+
+        Returns:
+            dict[numpy.ndarray]: Action distribution parameters.
+
+        """
+        raise NotImplementedError
 
     def dist_info_sym_given_task(self,
                                  obs_var,
                                  task_var,
                                  state_info_vars=None,
-                                 name='default'):
+                                 name='given_task'):
         """Build a symbolic graph of the action distribution given task.
 
         Args:
@@ -182,7 +242,7 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
                                    obs_var,
                                    latent_var,
                                    state_info_vars=None,
-                                   name='from_latent'):
+                                   name='given_latent'):
         """Build a symbolic graph of the action distribution given latent.
 
         Args:
@@ -225,17 +285,79 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
             garage.tf.distributions.DiagonalGaussian: Policy distribution.
 
         """
-        return self.model.networks['from_latent'].dist
+        return self.model.networks['given_latent'].dist
+
+    def get_action(self, observation):
+        """Get action sampled from the policy.
+
+        Args:
+            observation (np.ndarray): Augmented observation from the
+                environment, with shape :math:`(O+N, )`. O is the dimension of
+                observation, N is the number of tasks.
+
+        Returns:
+            np.ndarray: Action sampled from the policy,
+                with shape :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
+
+        """
+        obs, task = self.split_augmented_observation(observation)
+        return self.get_action_given_task(obs, task)
+
+    def get_actions(self, observations):
+        """Get actions sampled from the policy.
+
+        Args:
+            observations (np.ndarray): Augmented observation from the
+                environment, with shape :math:`(B, O+N)`. B is the number of
+                environment steps, O is the dimension of observation, N is the
+                number of tasks.
+
+        Returns:
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of environment
+                    steps, M is the dimension of the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps, M is the dimension of the latent
+                    embedding.
+
+        """
+        obses, tasks = zip(*[
+            self.split_augmented_observation(aug_obs)
+            for aug_obs in observations
+        ])
+        return self.get_actions_given_tasks(np.array(obses), np.array(tasks))
 
     def get_action_given_latent(self, observation, latent):
         """Sample an action given observation and latent.
 
         Args:
-            observation (np.ndarray): Observation from the environment.
-            latent (np.ndarray): Latent.
+            observation (np.ndarray): Observation from the environment,
+                with shape :math:`(O, )`. O is the dimension of observation.
+            latent (np.ndarray): Latent, with shape :math:`(M, )`. M is the
+                dimension of latent embedding.
 
         Returns:
-            np.ndarray: Action sampled from the policy.
+            np.ndarray: Action sampled from the policy,
+                with shape :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
 
         """
         flat_obs = self.observation_space.flatten(observation)
@@ -253,50 +375,115 @@ class GaussianMLPTaskEmbeddingPolicy(TaskEmbeddingPolicy):
         """Sample a batch of actions given observations and latents.
 
         Args:
-            observations (np.ndarray): Observations from the environment.
-            latents (np.ndarray): Latents.
+            observations (np.ndarray): Observations from the environment, with
+                shape :math:`(B, O)`. B is the number of environment steps, O
+                is the dimension of observation.
+            latents (np.ndarray): Latents, with shape :math:`(B, M)`. B is the
+                number of environment steps, M is the dimension of
+                latent embedding.
 
         Returns:
-            np.ndarray: Actions sampled from the policy.
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
+            dict: Action distribution information, , with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
 
         """
-        raise NotImplementedError
+        flat_obses = self.observation_space.flatten_n(observations)
+        flat_latents = self.latent_space.flatten_n(latents)
+
+        means, log_stds = self._f_dist_obs_latent(flat_obses, flat_latents)
+        rnds = np.random.normal(size=means.shape)
+        samples = rnds * np.exp(log_stds) + means
+        samples = self.action_space.unflatten_n(samples)
+        means = self.action_space.unflatten_n(means)
+        log_stds = self.action_space.unflatten_n(log_stds)
+        return samples, dict(mean=means, log_std=log_stds)
 
     def get_action_given_task(self, observation, task_id):
         """Sample an action given observation and task id.
 
         Args:
-            observation (np.ndarray): Observation from the environment.
-            task_id (np.ndarry): One-hot task id.
+            observation (np.ndarray): Observation from the environment, with
+                shape :math:`(O, )`. O is the dimension of the observation.
+            task_id (np.ndarray): One-hot task id, with shape :math:`(N, ).
+                N is the number of tasks.
 
         Returns:
-            np.ndarray: Action sampled from the policy.
+            np.ndarray: Action sampled from the policy, with shape
+                :math:`(A, )`. A is the dimension of action.
+            dict: Action distribution information, with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(M, )`. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(M, )`. M is the dimension
+                    of the latent embedding.
 
         """
-        raise NotImplementedError
+        flat_obs = self.observation_space.flatten(observation)
+
+        mean, log_std = self._f_dist_obs_task([flat_obs], [task_id])
+        rnd = np.random.normal(size=mean.shape)
+        sample = rnd * np.exp(log_std) + mean
+        sample = self.action_space.unflatten(sample[0])
+        mean = self.action_space.unflatten(mean[0])
+        log_std = self.action_space.unflatten(log_std[0])
+        return sample, dict(mean=mean, log_std=log_std)
 
     def get_actions_given_tasks(self, observations, task_ids):
         """Sample a batch of actions given observations and task ids.
 
         Args:
-            observations (np.ndarray): Observations from the environment.
-            task_ids (np.ndarry): One-hot task ids.
+            observations (np.ndarray): Observations from the environment, with
+                shape :math:`(B, O)`. B is the number of environment steps,
+                O is the dimension of observation.
+            task_ids (np.ndarry): One-hot task ids, with shape :math:`(B, N)`.
+                B is the number of environment steps, N is the number of tasks.
 
         Returns:
-            np.ndarray: Actions sampled from the policy.
+            np.ndarray: Actions sampled from the policy,
+                with shape :math:`(B, A)`. B is the number of environment
+                steps, A is the dimension of action.
+            dict: Action distribution information, , with keys:
+                - mean (numpy.ndarray): Mean of the distribution,
+                    with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
+                - log_std (numpy.ndarray): Log standard deviation of the
+                    distribution, with shape :math:`(B, M)`. B is the number of
+                    environment steps. M is the dimension of
+                    the latent embedding.
 
         """
-        raise NotImplementedError
+        flat_obses = self.observation_space.flatten_n(observations)
+
+        means, log_stds = self._f_dist_obs_task(flat_obses, task_ids)
+        rnds = np.random.normal(size=means.shape)
+        samples = rnds * np.exp(log_stds) + means
+        samples = self.action_space.unflatten_n(samples)
+        means = self.action_space.unflatten_n(means)
+        log_stds = self.action_space.unflatten_n(log_stds)
+        return samples, dict(mean=means, log_std=log_stds)
 
     def __getstate__(self):
         """Object.__getstate__.
 
         Returns:
-            dict: the state to be pickled for the instance.
+            dict: The state to be pickled for the instance.
 
         """
         new_dict = super().__getstate__()
         del new_dict['_f_dist_obs_latent']
+        del new_dict['_f_dist_obs_task']
         return new_dict
 
     def __setstate__(self, state):
